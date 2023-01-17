@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 import requests
 import json
-from base64 import b64encode as b64
 import asyncio
 import aiohttp
 import time
 import itertools
+from base64 import b64encode as b64
 
 
 from username_to_user_id import username_to_user_id   # from original repo
@@ -35,22 +35,29 @@ print('Creating dataframe...')
 
 starter_names = rated_names.union(old_names)
 
-players = pd.DataFrame()
-usernames = pd.Series(list(starter_names))
-players['username'] = usernames
-players['encoded_username'] = ''
-players['url'] = ''
-players['wave'] = np.nan
-players['ratings'] = ''
 
-flavors = ['S2', 'S3', 'S4', 'T']
-attrs = ['rating', 'games_count', 'record', 'last_played']
+def create_df_from_set_of_usernames(names):
+    usernames = pd.Series(list(names))
 
-combos = list(itertools.product(flavors, attrs))
-cols = ['_'.join(combo) for combo in combos]
+    df = pd.DataFrame()
+    df['username'] = usernames
+    df['encoded_username'] = ''
+    df['url'] = ''
+    df['wave'] = np.nan
+    df['ratings'] = ''
 
-for col in cols:
-    players[f'{col}'] = np.nan
+    flavors = ['S2', 'S3', 'S4', 'T']
+    attrs = ['record', 'last_played']
+
+    combos = list(itertools.product(flavors, attrs))
+    COLS = ['_'.join(combo) for combo in combos]
+
+    for col in COLS:
+        df[f'{col}'] = np.nan
+    return df
+
+
+players = create_df_from_set_of_usernames(starter_names)
 
 
 def encode_username(s_ascii='username'):
@@ -69,17 +76,17 @@ async def get_stats(session, url):
         return body
 
 
-def extract_ratings(page):
-    print(page)
-    return json.loads(page)['ratings']
+def get_ratings(row, flavor):
+    if flavor in row['ratings']:
+        return row['ratings'][f'{flavor}']
 
 
 async def main(players, wave):
-    adding = players[players['url'] == '']
+    adding = players['url'] == ''
 
-    adding['encoded_username'] = adding['username'].apply(encode_username)
-    adding['url'] = player_page_root + adding['encoded_username'] + '.json'
-    urls = adding['url']
+    players.loc[adding, 'encoded_username'] = players.loc[adding, 'username'].apply(encode_username)
+    players.loc[adding, 'url'] = player_page_root + players.loc[adding, 'encoded_username'] + '.json'
+    urls = players.loc[adding, 'url']
 
     async with aiohttp.ClientSession() as session:
 
@@ -90,31 +97,50 @@ async def main(players, wave):
         print(f'...fetching wave {wave} with {len(tasks)} tasks...')
         print('--- %s seconds ---' % (time.time() - start_time))
 
+        if len(urls) == 0:
+            return players
+
         player_stats_pages = await asyncio.gather(*tasks)
-        adding['stats_page'] = player_stats_pages
-        adding['stats_page'] = adding['stats_page'].str.decode("utf-8")
-        adding['wave'] = wave
-        return adding
+        players.loc[adding, 'stats_page'] = player_stats_pages
+        players.loc[adding, 'stats_page'] = players.loc[adding, 'stats_page'].str.decode("utf-8")
+        players.loc[adding, 'wave'] = wave
+        return players
 
 
 start_time = time.time()
 
 
-known_players = set(players['username'])
-new_players = set()
-
-players = asyncio.run(main(players, 0))
-'''
 wave = 0
 
 while(True):
     players = asyncio.run(main(players, wave))
+    blanks = players['stats_page'].isna()
+    players.loc[~blanks, 'ratings'] = players.loc[~blanks, 'stats_page'].apply(json.loads)
+    known_players = set(players['username'].unique())
+    new_players = set()
+    for idx, row in players.iterrows():
+        if type(row['ratings']) is not dict:
+            continue
+        for game in row['ratings']['games']:
+            results = game[2]
+            for position in results:
+                player = position[0]
+                if player not in known_players:
+                    known_players.add(player)
+                    new_players.add(player)
+    print(len(known_players))
+    print(len(new_players))
+    if len(new_players) > 0:
+        newbies = create_df_from_set_of_usernames(new_players)
+        players = pd.concat([players, newbies], ignore_index=True)
+
     wave += 1
-    if wave > 2:
+    if wave > 12:
         print('breaking')
         break
-'''
 
+
+# flavors = ['Singles2', 'Singles3', 'Singles4', 'Teams']
 print(f'Read in {len(players)} rows into players')
 print('saving to CSV...')
 # players.to_pickle('./players.pkl')
