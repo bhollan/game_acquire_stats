@@ -44,12 +44,12 @@ players['wave'] = np.nan
 players['ratings'] = ''
 
 flavors = ['S2', 'S3', 'S4', 'T']
-attrs = ['record', 'last_played']
+attrs = ['rating', 'games_count', 'record', 'last_played']
 
 combos = list(itertools.product(flavors, attrs))
-COLS = ['_'.join(combo) for combo in combos]
+cols = ['_'.join(combo) for combo in combos]
 
-for col in COLS:
+for col in cols:
     players[f'{col}'] = np.nan
 
 
@@ -92,32 +92,28 @@ async def main(players, wave):
 
         player_stats_pages = await asyncio.gather(*tasks)
         adding['stats_page'] = player_stats_pages
-        adding['ratings'] = adding['stats_page'].str.decode("utf-8")
+        adding['stats_page'] = adding['stats_page'].str.decode("utf-8")
         adding['wave'] = wave
         return adding
 
 
 start_time = time.time()
 
+
+known_players = set(players['username'])
+new_players = set()
+
+players = asyncio.run(main(players, 0))
+'''
 wave = 0
 
 while(True):
-
     players = asyncio.run(main(players, wave))
-
-    this_wave = players[players['wave'] == wave]
-    blanks = this_wave['stats_page'].isna()
-    this_wave['ratings'] = this_wave[~blanks]['stats_page'].apply(json.loads)
-
-    COLS = ['_'.join(combo) for combo in combos]
-
-    known_players = set(players['username'])
-    new_players = set()
-
     wave += 1
     if wave > 2:
         print('breaking')
         break
+'''
 
 print(f'Read in {len(players)} rows into players')
 print('saving to CSV...')
