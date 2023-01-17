@@ -1,3 +1,6 @@
 *.csv
 __pycache__
 *.pkl
+NOTES.txt
+.ipynb_checkpoints/
+*.swp
