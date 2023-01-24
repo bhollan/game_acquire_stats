@@ -142,6 +142,10 @@ while(True):
 
 # flavors = ['Singles2', 'Singles3', 'Singles4', 'Teams']
 print(f'Read in {len(players)} rows into players')
+
+
+
+
 print('saving to CSV...')
 # players.to_pickle('./players.pkl')
 players.to_csv('./players.csv')
