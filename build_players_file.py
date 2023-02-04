@@ -81,11 +81,15 @@ def get_ratings(row, flavor):
         return row['ratings'][f'{flavor}']
 
 
-async def main(players, wave):
+async def fetch_wave(players, wave):
     adding = players['url'] == ''
 
-    players.loc[adding, 'encoded_username'] = players.loc[adding, 'username'].apply(encode_username)
-    players.loc[adding, 'url'] = player_page_root + players.loc[adding, 'encoded_username'] + '.json'
+    players.loc[adding, 'encoded_username'] = players.loc[adding, 'username']\
+        .apply(encode_username)
+    players.loc[adding, 'url'] = \
+        player_page_root +\
+        players.loc[adding, 'encoded_username'] +\
+        '.json'
     urls = players.loc[adding, 'url']
 
     async with aiohttp.ClientSession() as session:
@@ -102,7 +106,8 @@ async def main(players, wave):
 
         player_stats_pages = await asyncio.gather(*tasks)
         players.loc[adding, 'stats_page'] = player_stats_pages
-        players.loc[adding, 'stats_page'] = players.loc[adding, 'stats_page'].str.decode("utf-8")
+        players.loc[adding, 'stats_page'] = \
+            players.loc[adding, 'stats_page'].str.decode("utf-8")
         players.loc[adding, 'wave'] = wave
         return players
 
@@ -113,9 +118,10 @@ start_time = time.time()
 wave = 0
 
 while(True):
-    players = asyncio.run(main(players, wave))
+    players = asyncio.run(fetch_wave(players, wave))
     blanks = players['stats_page'].isna()
-    players.loc[~blanks, 'ratings'] = players.loc[~blanks, 'stats_page'].apply(json.loads)
+    players.loc[~blanks, 'ratings'] = \
+        players.loc[~blanks, 'stats_page'].apply(json.loads)
     known_players = set(players['username'].unique())
     new_players = set()
     for idx, row in players.iterrows():
@@ -133,6 +139,8 @@ while(True):
     if len(new_players) > 0:
         newbies = create_df_from_set_of_usernames(new_players)
         players = pd.concat([players, newbies], ignore_index=True)
+    elif len(new_players) == 0:
+        break
 
     wave += 1
     if wave > 12:
@@ -142,8 +150,6 @@ while(True):
 
 # flavors = ['Singles2', 'Singles3', 'Singles4', 'Teams']
 print(f'Read in {len(players)} rows into players')
-
-
 
 
 print('saving to CSV...')
