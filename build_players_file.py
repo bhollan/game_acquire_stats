@@ -1,3 +1,7 @@
+# this file will not work properly in Jupyter
+# there is an interaction between how Notebook works and `async` functions
+# run this file via: `$ python build_players_file` or similar
+
 import pandas as pd
 import numpy as np
 import requests
@@ -111,9 +115,9 @@ async def fetch_wave(players, wave):
         players.loc[adding, 'wave'] = wave
         return players
 
-
+seen_stamps = set()
+games_list = []
 start_time = time.time()
-
 
 wave = 0
 
@@ -128,14 +132,18 @@ while(True):
         if type(row['ratings']) is not dict:
             continue
         for game in row['ratings']['games']:
+            timestamp = game[1]
+            if timestamp not in seen_stamps:
+                seen_stamps.add(timestamp)
+                games_list.append(game)
             results = game[2]
             for position in results:
                 player = position[0]
                 if player not in known_players:
                     known_players.add(player)
                     new_players.add(player)
-    print(len(known_players))
-    print(len(new_players))
+    print("known players: ", len(known_players))
+    print("new players:   ", len(new_players))
     if len(new_players) > 0:
         newbies = create_df_from_set_of_usernames(new_players)
         players = pd.concat([players, newbies], ignore_index=True)
@@ -148,10 +156,14 @@ while(True):
         break
 
 
-# flavors = ['Singles2', 'Singles3', 'Singles4', 'Teams']
 print(f'Read in {len(players)} rows into players')
+print(f'Saw {len(seen_stamps)} unique games')
 
-
-print('saving to CSV...')
+print('saving players to CSV...')
 # players.to_pickle('./players.pkl')
 players.to_csv('./players.csv')
+
+games = pd.DataFrame(games_list)
+print('saving games to CSV...')
+games.to_csv('./games.csv')
+
